@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#121214">
-<title>视频合集升降序调整 Demo</title>
+<title>视频播放排序优化 Demo</title>
 <style>
 :root{font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:#f4f5f5;background:#151718;color-scheme:dark;--mint:#68e1d4;--teal:#0aa79f;--muted:#a4aaac;--border:#363a3b}
 *{box-sizing:border-box}body{margin:0}button{color:inherit;background:none;border:0;font:inherit;cursor:pointer;padding:0}button:focus-visible{outline:2px solid #2bcfc0;outline-offset:-2px}button:disabled{cursor:default;opacity:.48}[hidden]{display:none!important}img{display:block;width:100%;height:100%;object-fit:cover}svg{width:18px;height:18px;vertical-align:middle;flex-shrink:0}.icon{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:10px}.icon:hover{background:#a1a1a123}.wrap{width:min(100% - 52px,960px);margin:auto}.topbar{border-bottom:1px solid #313435}.topbar .wrap{height:60px;display:flex;align-items:center;justify-content:space-between}.brand{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:650;letter-spacing:.04em}.brand span{width:31px;height:31px;display:grid;place-items:center;border-radius:9px;background:#284442;color:var(--mint)}.topbar small{color:#a7afaf;font-size:12px}.mobile-tools{display:none}.intro{padding:23px 0 20px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}.intro h1{margin:0;font-size:28px;letter-spacing:.01em;line-height:1.4}.intro p{margin:0 0 3px;color:var(--muted);font-size:13px;line-height:1.6}.layout{display:grid;grid-template-columns:1fr 312px;gap:20px;align-items:start;margin-bottom:28px}.stage{background:#1d2021;border:1px solid #303536;border-radius:18px;padding:12px 15px 15px;display:grid;justify-items:center}.stage-label{width:100%;display:flex;align-items:center;gap:7px;color:#c3c9c8;font-size:12px;margin:0 0 10px}.stage-label::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mint)}
@@ -15,14 +15,15 @@
 @media(max-width:780px){.wrap{width:calc(100% - 28px)}.layout{grid-template-columns:1fr 265px;gap:12px}.intro{align-items:flex-start;flex-direction:column;gap:3px}.intro h1{font-size:23px}.stage{padding:9px}.panel{padding:11px}}
 @media(max-width:600px){.topbar{position:sticky;top:0;z-index:5;background:#151718}.wrap{width:100%}.topbar .wrap{height:47px;padding:0 13px}.topbar small{display:none}.brand span{height:26px;width:26px}.mobile-tools{display:block;color:var(--mint);font-size:12px;padding:7px}.intro,.stage-label{display:none}.layout{display:block;margin:0}.stage{display:block;padding:0;border:0;border-radius:0}.device{width:100%;height:calc(100dvh - 47px);min-height:440px;border:none;border-radius:0;box-shadow:none}.control-panel{display:none;padding:12px;scroll-margin-top:47px}.control-panel.expanded{display:grid}.full-footer,.sheet-footer{padding-bottom:max(10px,env(safe-area-inset-bottom))}.card-view .thumb{height:clamp(150px,32vh,245px)}}
 @media(prefers-reduced-motion:reduce){.playing .poster img{animation:none}}
+.state .next-title{min-width:0;max-width:74%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scenarios .finish{border-color:#426761;background:#263a38;color:#a6f0e6}.scenarios .finish:disabled{border-color:#444b4c;background:none;color:inherit}
 </style>
 </head>
 <body>
 <header class="topbar"><div class="wrap"><div class="brand"><span id="brand-icon" aria-hidden="true"></span>视频合集</div><small>交互 Demo</small><button class="mobile-tools" type="button" data-action="tools" aria-expanded="false" aria-controls="control-panel">演示面板</button></div></header>
 <main class="wrap">
-  <div class="intro"><h1>视频合集升降序调整</h1><p>在合集弹窗和「查看全部」中切换排序</p></div>
+  <div class="intro"><h1>视频播放排序优化</h1><p>正序、倒序联动，完播后自动续播</p></div>
   <div class="layout">
-    <div class="stage"><p class="stage-label" id="screen-label">合集弹窗</p><div class="device" id="device" aria-label="合集交互预览"><div id="screen" style="height:100%"></div><div class="toast" role="status" hidden id="toast"></div></div></div>
+    <div class="stage"><p class="stage-label" id="screen-label">视频播放弹窗页</p><div class="device" id="device" aria-label="合集交互预览"><div id="screen" style="height:100%"></div><div class="toast" role="status" hidden id="toast"></div></div></div>
     <aside class="control-panel" id="control-panel" aria-label="演示面板"></aside>
   </div>
 </main>
@@ -46,22 +47,24 @@ function icon(name) {
 }
 
 const episodes = {
-  pilot:['长夜既明先导片','世家公子和侍卫的故事。','11','1:36',96,'2026-10-18','pilot'],
-  e01:['脏脏包和奶团子的故事开始了【长夜既明 01】','故事从一次意外相遇开始。','5','2:51',171,'2026-10-19','first'],
-  e18:['少爷为什么要这样？【长夜既明 18 · 念念不可说】','若能毫无顾忌，少爷又会怎样选择？','10','3:05',185,'2026-11-15','e18'],
-  e19:['少爷不懂，但是少爷主动【长夜既明 19 · 一念叩心】','暮色四合，一场对峙刚刚开始。','14','3:22',202,'2026-11-16','e19'],
-  e20:['睡了！【长夜既明 20 · 冬日暖情】','少爷至少像这样未按时就寝。','122','3:14',194,'2026-11-18','e20'],
-  e21:['好像有什么不得了的大事发生？【长夜既明 21 · 暗流】','山雨欲来，暗流已至。','250','4:48',288,'2026-11-20','e21'],
-  e22:['我上春山，等你来见～【长夜既明 22 · 上春山】','一路向着春山而去。','53','3:48',228,'2026-11-22','latest'],
-  q01:['初见【青梅竹马 01】','少年时的第一次相遇。','13','2:00',120,'2026-11-01','pilot'],
-  q02:['约好一起回家【青梅竹马 02】','门口有人还在等你。','27','2:25',145,'2026-11-03','e20'],
-  q03:['从前的约定【青梅竹马 03】','循着旧路，想起从前的约定。','31','3:14',194,'2026-11-06','e18']
+  pilot:['长夜既明先导片','世家公子和侍卫的故事。','11','1:36','2026-10-18','pilot'],
+  e01:['脏脏包和奶团子的故事开始了【长夜既明 01】','故事从一次意外相遇开始。','5','2:51','2026-10-19','first'],
+  e18:['少爷为什么要这样？【长夜既明 18 · 念念不可说】','若能毫无顾忌，少爷又会怎样选择？','10','3:05','2026-11-15','e18'],
+  e19:['少爷不懂，但是少爷主动【长夜既明 19 · 一念叩心】','暮色四合，一场对峙刚刚开始。','14','3:22','2026-11-16','e19'],
+  e20:['睡了！【长夜既明 20 · 冬日暖情】','少爷至少像这样未按时就寝。','122','3:14','2026-11-18','e20'],
+  e21:['好像有什么不得了的大事发生？【长夜既明 21 · 暗流】','山雨欲来，暗流已至。','250','4:48','2026-11-20','e21'],
+  e22:['我上春山，等你来见～【长夜既明 22 · 上春山】','一路向着春山而去。','53','3:48','2026-11-22','latest'],
+  q01:['初见【青梅竹马 01】','少年时的第一次相遇。','13','2:00','2026-11-01','pilot'],
+  q02:['约好一起回家【青梅竹马 02】','门口有人还在等你。','27','2:25','2026-11-03','e20'],
+  q03:['从前的约定【青梅竹马 03】','循着旧路，想起从前的约定。','31','3:14','2026-11-06','e18']
 };
 const collections = {
   night:{name:'长夜既明', author:'山药葛根玉米粉', cover:'cover', poster:'hero', initial:'e21', ids:['pilot','e01','e18','e19','e20','e21','e22'], edits:[['e19','pilot','e22','e01','e21','e20','e18'],['e21','e20','pilot','e18','e22','e01','e19']], metrics:[14,522,315], tags:['视频星推计划','年上','青梅竹马','长夜既明']},
   plum:{name:'青梅竹马', author:'山药葛根玉米粉', cover:'e20', initial:'q01', ids:['q01','q02','q03'], edits:[['q02','q01','q03'],['q03','q01','q02']], metrics:[8,71,103], tags:['视频星推计划','青梅竹马','原创短剧']}
 };
 const state = {collection:'night', page:'sheet', view:'card', fromAll:false, now:'e21', elapsed:0, playing:false};
+const orderLabels = {forward:'正序', reverse:'倒序'};
+const previewSeconds = 8;
 const preferences = {};
 const storagePrefix = 'collection-sort-demo.v1.';
 const screen = document.querySelector('#screen');
@@ -73,10 +76,10 @@ let toastTimer;
 function saved() {
   const id = state.collection;
   if (preferences[id]) return preferences[id];
-  const value = {order:'asc', edit:0, subscribed:true};
+  const value = {order:'forward', edit:0, subscribed:true};
   try {
     const previous = JSON.parse(localStorage.getItem(storagePrefix + id));
-    if (previous?.order === 'desc') value.order = 'desc';
+    if (['reverse', 'desc'].includes(previous?.order)) value.order = 'reverse';
     if ([1, 2].includes(previous?.edit)) value.edit = previous.edit;
     if (previous?.subscribed === false) value.subscribed = false;
   } catch { /* The current session still works when browser storage is unavailable. */ }
@@ -89,22 +92,28 @@ function persist() {
 function collection() { return collections[state.collection]; }
 function sortedIds() {
   const {order, edit} = saved();
-  const base = edit ? [...collection().edits[edit - 1]] : [...collection().ids].sort((left, right) => episodes[left][5].localeCompare(episodes[right][5]));
-  return order === 'desc' ? base.reverse() : base;
+  const base = edit ? [...collection().edits[edit - 1]] : [...collection().ids].sort((left, right) => episodes[right][4].localeCompare(episodes[left][4]));
+  return order === 'reverse' ? base.reverse() : base;
+}
+function nextEpisode(ids) {
+  const index = ids.indexOf(state.now);
+  return index > 0 ? ids[index - 1] : null;
 }
 function image(key, alt = '') { return `<img src="${artwork[key]}" alt="${alt}" draggable="false">`; }
 function button(action, labelText, iconName, className = 'icon') {
   return `<button type="button" class="${className}" data-action="${action}" aria-label="${labelText}" title="${labelText}">${icon(iconName)}</button>`;
 }
 function sortingButton() {
-  const asc = saved().order === 'asc';
-  return `<button type="button" class="sort" data-action="sort" aria-label="当前${asc ? '升序，切换为降序' : '降序，切换为升序'}">${icon(asc ? 'asc' : 'desc')}<span>${asc ? '升序' : '降序'}</span></button>`;
+  const {order} = saved();
+  const forward = order === 'forward';
+  const opposite = forward ? 'reverse' : 'forward';
+  return `<button type="button" class="sort" data-action="sort" aria-label="当前${orderLabels[order]}，切换为${orderLabels[opposite]}">${icon(forward ? 'desc' : 'asc')}<span>${orderLabels[order]}</span></button>`;
 }
 function thumbnail(key, duration = '', bakedPlay = false) {
   return `<span class="thumb">${image(key)}${bakedPlay ? '' : `<span class="triangle">${icon('play')}</span>`}${duration ? `<span class="duration">${duration}</span>` : ''}</span>`;
 }
 function episodeRow(id, mode) {
-  const [title, summary, heat, duration,,, art] = episodes[id];
+  const [title, summary, heat, duration,, art] = episodes[id];
   const isCurrent = state.now === id;
   const body = mode === 'card'
     ? `<span class="byline">${image(collection().cover)}<strong>${collection().author}</strong></span><strong class="card-title">${title}</strong>${thumbnail(art, duration, true)}<small class="card-meta">${heat} 热度</small>`
@@ -117,16 +126,16 @@ function subscription() {
 }
 function renderReader(ids) {
   const current = collection();
-  const [title,,,,,, art] = episodes[state.now];
+  const [title,,,,, art] = episodes[state.now];
   const poster = state.now === current.initial && current.poster ? current.poster : art;
   const showingSheet = state.page === 'sheet';
   return `<section class="reader${state.playing ? ' playing' : ''}" aria-label="视频页">
     <div class="reader-cover"><div class="poster${poster === 'hero' ? ' wide' : ''}">${image(poster, '当前视频封面')}</div>
-      <div class="reader-top">${state.fromAll ? button('reader-back', '返回查看全部', 'back') : ''}</div>
+      <div class="reader-top">${state.fromAll ? button('reader-back', '返回合集详情页', 'back') : ''}</div>
       <div class="cover-caption"><div><small>${current.name}</small><strong>${title}</strong></div>${button('play', state.playing ? '暂停预览' : '播放预览', state.playing ? 'pause' : 'play', 'play-btn')}</div>
       <div class="progress" aria-hidden="true"><span></span></div>
     </div>
-    ${showingSheet ? `<section class="sheet" aria-label="合集弹窗">
+    ${showingSheet ? `<section class="sheet" aria-label="视频播放弹窗页">
       <div class="sheet-head"><div class="sheet-title">${icon('layers')}<span>合集 · ${current.name}</span><small>${ids.length} 个视频</small></div>${sortingButton()}${button('close', '关闭合集弹窗', 'close', 'icon close')}</div>
       <div class="sheet-list" data-scroll>${ids.map(id => episodeRow(id, 'sheet')).join('')}</div>
       <div class="sheet-footer"><button type="button" class="pill secondary" data-action="all">查看全部</button>${subscription()}</div>
@@ -136,8 +145,8 @@ function renderReader(ids) {
 function renderAll(ids) {
   const current = collection();
   const card = state.view === 'card';
-  return `<section class="full" aria-label="查看全部">
-    <header class="full-head"><div class="head-bg" aria-hidden="true">${image(current.cover)}</div><div class="full-nav">${button('sheet', '返回合集弹窗', 'back')}<span>合集</span></div>
+  return `<section class="full" aria-label="合集详情页">
+    <header class="full-head"><div class="head-bg" aria-hidden="true">${image(current.cover)}</div><div class="full-nav">${button('sheet', '返回视频播放弹窗', 'back')}<span>合集</span></div>
       <div class="collection"><div class="thumb">${image(current.cover)}</div><div><h2>${current.name}</h2><p>${current.author} · 更新于昨天<br><span>视频合集</span><span>近期有更新</span></p></div></div>
       <div class="metrics">${current.metrics.map((metric, i) => `<div><strong>${metric}</strong><small>${['订阅数','总热度','浏览数'][i]}</small></div>`).join('')}</div>
     </header>
@@ -148,28 +157,32 @@ function renderAll(ids) {
     <div class="full-footer">${subscription()}<button type="button" class="pill read" data-action="read">开始阅读</button></div>
   </section>`;
 }
-function renderControls() {
+function renderControls(ids) {
   const {order, edit} = saved();
   const page = state.page === 'all' ? state.view : state.page;
-  const routes = [['sheet','layers','合集弹窗'],['card','card','查看全部 · 卡片视图'],['list','list','查看全部 · 列表视图']];
+  const next = nextEpisode(ids);
+  const nextTitle = next ? episodes[next][0] : '已到列表顶部';
+  const routes = [['sheet','layers','视频播放弹窗页'],['card','card','合集详情 · 卡片视图'],['list','list','合集详情 · 列表视图']];
   controls.innerHTML = `
     <section class="panel"><h2>页面预览</h2><div class="segments">${routes.map(([route, glyph, text]) => `<button type="button" data-action="preview" data-id="${route}" aria-pressed="${page === route}">${icon(glyph)}${text}${page === route ? '<span class="current-dot" aria-hidden="true"></span>' : ''}</button>`).join('')}</div></section>
     <section class="panel"><h2>演示场景</h2><div class="collection-options">${Object.entries(collections).map(([id, item]) => `<button type="button" data-action="collection" data-id="${id}" aria-pressed="${state.collection === id}">${image(item.cover)}${item.name}</button>`).join('')}</div>
-      <div class="scenarios"><button type="button" data-action="edit">${icon('shuffle')}模拟作者改序</button>
+      <div class="scenarios"><button type="button" class="finish" data-action="finish"${state.page === 'all' ? ' disabled' : ''}>${icon('play')}模拟完播</button>
+      <button type="button" data-action="edit">${icon('shuffle')}模拟作者改序</button>
       <button type="button" data-action="restore"${edit ? '' : ' disabled'}>${icon('reset')}恢复发布时间顺序</button>
       <button type="button" data-action="forget">${icon('reset')}清除当前合集的排序记录</button></div></section>
-    <section class="panel"><h2>当前排序状态</h2><dl class="state"><div><dt>用户选择</dt><dd class="order-value">${order === 'asc' ? '升序' : '降序'}</dd></div><div><dt>合集基准</dt><dd>${edit ? `作者调整顺序 · 方案 ${edit}` : '发布时间顺序'}</dd></div></dl><p class="rule">${edit ? '升序按作者最新顺序展示，降序将该顺序反转。' : '升序从最早发布开始，降序从最新发布开始。'}</p></section>`;
+    <section class="panel"><h2>排序与续播</h2><dl class="state"><div><dt>当前排序</dt><dd class="order-value">${orderLabels[order]}</dd></div><div><dt>合集基准</dt><dd>${edit ? `作者调整顺序 · 方案 ${edit}` : '发布时间顺序'}</dd></div><div><dt>下一集</dt><dd class="next-title" title="${nextTitle}">${nextTitle}</dd></div></dl><p class="rule">${edit ? '正序按作者最新顺序展示，倒序将该顺序反转。' : '正序由近到远，倒序由远到近。'}完播后播放当前视频上方的一项。</p></section>`;
 }
-function render({keepScroll = false, trigger} = {}) {
+function render({keepScroll = false, revealEpisode = false, trigger} = {}) {
   const scroll = keepScroll ? screen.querySelector('[data-scroll]')?.scrollTop : 0;
   const focused = trigger === document.activeElement;
   const ids = sortedIds();
   const full = state.page === 'all';
   screen.innerHTML = full ? renderAll(ids) : renderReader(ids);
-  label.textContent = full ? `查看全部 · ${state.view === 'card' ? '卡片' : '列表'}视图` : state.page === 'sheet' ? '合集弹窗' : '视频页';
+  label.textContent = full ? `合集详情 · ${state.view === 'card' ? '卡片' : '列表'}视图` : state.page === 'sheet' ? '视频播放弹窗页' : '视频播放页';
   if (scroll) screen.querySelector('[data-scroll]').scrollTop = scroll;
+  if (revealEpisode) revealPlayingEpisode();
   updateProgress();
-  renderControls();
+  renderControls(ids);
   if (focused && trigger) {
     const action = trigger.dataset.action;
     const id = trigger.dataset.id;
@@ -178,8 +191,18 @@ function render({keepScroll = false, trigger} = {}) {
     (same || next)?.focus({preventScroll:true});
   }
 }
+function revealPlayingEpisode() {
+  const list = screen.querySelector('.sheet-list');
+  const row = list?.querySelector('[aria-current="true"]');
+  if (!row) return;
+  const rowBounds = row.getBoundingClientRect();
+  const listBounds = list.getBoundingClientRect();
+  if (rowBounds.top < listBounds.top || rowBounds.bottom > listBounds.bottom) {
+    list.scrollTop += rowBounds.top - listBounds.top;
+  }
+}
 function updateProgress() {
-  screen.querySelector('.progress span')?.style.setProperty('--progress', `${Math.min(100, state.elapsed / episodes[state.now][4] * 100)}%`);
+  screen.querySelector('.progress span')?.style.setProperty('--progress', `${Math.min(100, state.elapsed / previewSeconds * 100)}%`);
 }
 function notify(message) {
   clearTimeout(toastTimer);
@@ -188,19 +211,30 @@ function notify(message) {
   toastTimer = setTimeout(() => { toast.hidden = true; }, 2200);
 }
 function openPage(page) {
+  if (page === 'all' || state.page === 'all') state.fromAll = false;
   state.page = page;
-  state.fromAll = false;
   if (page === 'all') state.playing = false;
 }
 function playEpisode(id) {
   const returnToAll = state.page === 'all';
-  if (state.now !== id) state.elapsed = 0;
+  if (state.now !== id || state.elapsed >= previewSeconds) state.elapsed = 0;
   state.now = id;
   state.playing = true;
   if (returnToAll) {
-    state.page = 'reader';
+    state.page = 'sheet';
     state.fromAll = true;
   }
+}
+function finishEpisode(trigger) {
+  const next = nextEpisode(sortedIds());
+  if (next) {
+    playEpisode(next);
+  } else {
+    state.elapsed = previewSeconds;
+    state.playing = false;
+  }
+  render({keepScroll:true, revealEpisode:Boolean(next), trigger});
+  notify(next ? '已自动播放下一集' : '当前排序下已无下一集');
 }
 document.addEventListener('click', event => {
   const trigger = event.target.closest('button[data-action]');
@@ -209,11 +243,12 @@ document.addEventListener('click', event => {
   const pref = saved();
   let message = '';
   let keepScroll = false;
+  let revealEpisode = false;
   switch (action) {
-    case 'sort': pref.order = pref.order === 'asc' ? 'desc' : 'asc'; persist(); message = `已切换为${pref.order === 'asc' ? '升序' : '降序'}`; break;
+    case 'sort': pref.order = pref.order === 'forward' ? 'reverse' : 'forward'; persist(); message = `已切换为${orderLabels[pref.order]}`; break;
     case 'all': openPage('all'); break;
     case 'sheet': openPage('sheet'); break;
-    case 'close': state.page = 'reader'; state.fromAll = false; break;
+    case 'close': state.page = 'reader'; break;
     case 'reader-back': openPage('all'); break;
     case 'view': state.view = state.view === 'card' ? 'list' : 'card'; break;
     case 'preview':
@@ -225,11 +260,12 @@ document.addEventListener('click', event => {
         document.querySelector('.device').scrollIntoView({block:'nearest'});
       }
       break;
-    case 'episode': playEpisode(id); keepScroll = state.page === 'sheet'; break;
-    case 'read': playEpisode(sortedIds()[0]); break;
+    case 'episode': keepScroll = state.page === 'sheet'; playEpisode(id); revealEpisode = !keepScroll; break;
+    case 'read': playEpisode(sortedIds()[0]); revealEpisode = true; break;
     case 'play':
-      if (state.elapsed >= episodes[state.now][4]) state.elapsed = 0;
+      if (state.elapsed >= previewSeconds) state.elapsed = 0;
       state.playing = !state.playing; keepScroll = true; break;
+    case 'finish': finishEpisode(trigger); return;
     case 'subscribe': pref.subscribed = !pref.subscribed; persist(); keepScroll = true; break;
     case 'collection':
       if (id === state.collection) return;
@@ -237,26 +273,26 @@ document.addEventListener('click', event => {
       state.now = collection().initial;
       state.elapsed = 0;
       state.playing = false;
+      state.fromAll = false;
       if (state.page === 'reader') openPage('sheet');
       break;
     case 'edit': pref.edit = pref.edit === 1 ? 2 : 1; persist(); message = `已应用作者改序方案 ${pref.edit}`; break;
     case 'restore': pref.edit = 0; persist(); message = '已恢复发布时间顺序'; break;
-    case 'forget': pref.order = 'asc'; persist(); message = '已清除排序记录，恢复默认升序'; break;
+    case 'forget': pref.order = 'forward'; persist(); message = '已清除排序记录，恢复默认正序'; break;
     case 'tools':
       const expanded = controls.classList.toggle('expanded');
       trigger.setAttribute('aria-expanded', String(expanded));
       if (expanded) controls.scrollIntoView({block:'start'});
       return;
   }
-  render({keepScroll, trigger});
+  render({keepScroll, revealEpisode, trigger});
   if (message) notify(message);
 });
 setInterval(() => {
   if (!state.playing) return;
   state.elapsed += 1;
-  if (state.elapsed >= episodes[state.now][4]) {
-    state.playing = false;
-    render({keepScroll:true});
+  if (state.elapsed >= previewSeconds) {
+    finishEpisode();
     return;
   }
   updateProgress();

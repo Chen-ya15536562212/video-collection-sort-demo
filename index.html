@@ -17,6 +17,7 @@
 @media(prefers-reduced-motion:reduce){.playing .poster img{animation:none}}
 .state .next-title{min-width:0;max-width:74%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.scenarios .finish{border-color:#426761;background:#263a38;color:#a6f0e6}.scenarios .finish:disabled{border-color:#444b4c;background:none;color:inherit}
 .playback-settings,.author-moves{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.playback-settings button,.author-moves button{min-height:32px;border:1px solid #444b4c;border-radius:8px;padding:6px 9px;font-size:11px}.playback-settings [aria-checked="true"]{border-color:#426761;background:#263a38;color:#a6f0e6}.author-episode{display:block;width:100%;min-height:33px;margin-top:5px;padding:4px 7px;border:1px solid #444b4c;border-radius:8px;background:#292d2e;color:inherit;font:inherit;font-size:12px}.author-caption{font-size:11px;color:#aab1b0}
+.reader-cover{touch-action:pan-x pinch-zoom}
 </style>
 </head>
 <body>
@@ -24,7 +25,7 @@
 <main class="wrap">
   <div class="intro"><h1>视频播放排序优化</h1><p>正序、倒序联动，完播后自动续播</p></div>
   <div class="layout">
-    <div class="stage"><p class="stage-label" id="screen-label">视频播放弹窗页</p><div class="device" id="device" aria-label="合集交互预览"><div id="screen" style="height:100%"></div></div></div>
+    <div class="stage"><p class="stage-label" id="screen-label">合集弹窗</p><div class="device" id="device" aria-label="合集交互预览"><div id="screen" style="height:100%"></div></div></div>
     <aside class="control-panel" id="control-panel" aria-label="演示面板"></aside>
   </div>
 </main>
@@ -56,13 +57,20 @@ const episodes = {
   e22:['我上春山，等你来见～【长夜既明 22 · 上春山】','一路向着春山而去。','53','3:48','latest'],
   q01:['初见【青梅竹马 01】','少年时的第一次相遇。','13','2:00','pilot'],
   q02:['约好一起回家【青梅竹马 02】','门口有人还在等你。','27','2:25','e20'],
-  q03:['从前的约定【青梅竹马 03】','循着旧路，想起从前的约定。','31','3:14','e18']
+  q03:['从前的约定【青梅竹马 03】','循着旧路，想起从前的约定。','31','3:14','e18'],
+  m01:['月下初逢【山月相逢】','夜色中的一次相遇。','18','2:04','e18'],
+  m02:['旧巷来信【山月相逢】','一封来信打破了平静。','23','2:40','e19']
 };
 const collections = {
   night:{name:'长夜既明', author:'山药葛根玉米粉', cover:'cover', poster:'hero', initial:'e21', ids:['pilot','e01','e18','e19','e20','e21','e22'], edits:[['e19','pilot','e22','e01','e21','e20','e18'],['e21','e20','pilot','e18','e22','e01','e19']], metrics:[14,522,315], tags:['视频星推计划','年上','青梅竹马','长夜既明']},
-  plum:{name:'青梅竹马', author:'山药葛根玉米粉', cover:'e20', initial:'q01', ids:['q01','q02','q03'], edits:[['q02','q01','q03'],['q03','q01','q02']], metrics:[8,71,103], tags:['视频星推计划','青梅竹马','原创短剧']}
+  plum:{name:'青梅竹马', author:'山药葛根玉米粉', cover:'e20', initial:'q01', ids:['q01','q02','q03'], edits:[['q02','q01','q03'],['q03','q01','q02']], metrics:[8,71,103], tags:['视频星推计划','青梅竹马','原创短剧']},
+  moon:{name:'山月相逢', author:'山外小剧场', cover:'e18', initial:'m01', ids:['m01','m02'], metrics:[6,48,91], tags:['古风短剧','山月相逢']}
 };
-const state = {collection:'night', page:'sheet', view:'card', fromAll:false, now:'e21', elapsed:0, playing:false, autoplay:true, loop:false, authorId:null};
+const shareQuery = new URLSearchParams(location.search);
+const sharedCollection = shareQuery.get('collection');
+const sharedVideo = shareQuery.get('video');
+const validShare = Object.hasOwn(collections, sharedCollection) && collections[sharedCollection].ids.includes(sharedVideo);
+const state = {collection:validShare ? sharedCollection : 'night', page:'sheet', view:'card', fromAll:false, now:validShare ? sharedVideo : 'e21', elapsed:0, playing:false, autoplay:true, authorId:null};
 const orderLabels = {forward:'正序', reverse:'倒序'};
 const previewSeconds = 8;
 const preferences = {};
@@ -79,7 +87,7 @@ function saved() {
     const previous = JSON.parse(localStorage.getItem(storagePrefix + id));
     if (['reverse', 'desc'].includes(previous?.order)) value.order = 'reverse';
     const collectionIds = collections[id].ids;
-    const authorIds = previous?.authorIds ?? collections[id].edits[previous?.edit - 1];
+    const authorIds = previous?.authorIds ?? collections[id].edits?.[previous?.edit - 1];
     if (Array.isArray(authorIds) && authorIds.length === collectionIds.length && collectionIds.every(item => authorIds.includes(item))) {
       value.authorIds = authorIds;
     }
@@ -99,13 +107,9 @@ function sortedIds() {
   const ids = [...forwardIds()];
   return saved().order === 'reverse' ? ids.reverse() : ids;
 }
-function latestId() { return collection().ids.at(-1); }
-function nextEpisode() {
-  if (!state.autoplay) return null;
-  const ids = forwardIds();
+function nextEpisode(ids = sortedIds()) {
   const index = ids.indexOf(state.now);
-  if (index < 0) return null;
-  return ids[index + 1] ?? (state.loop ? ids[0] : null);
+  return index >= 0 ? ids[index + 1] ?? null : null;
 }
 function image(key, alt = '') { return `<img src="${artwork[key]}" alt="${alt}" draggable="false">`; }
 function button(action, labelText, iconName, className = 'icon') {
@@ -137,13 +141,13 @@ function renderReader(ids) {
   const [title,,,, art] = episodes[state.now];
   const poster = state.now === current.initial && current.poster ? current.poster : art;
   const showingSheet = state.page === 'sheet';
-  return `<section class="reader${state.playing ? ' playing' : ''}" aria-label="视频页">
+  return `<section class="reader${state.playing ? ' playing' : ''}" aria-label="视频播放页">
     <div class="reader-cover"><div class="poster${poster === 'hero' ? ' wide' : ''}">${image(poster, '视频封面')}</div>
       <div class="reader-top">${state.fromAll ? button('reader-back', '返回合集详情页', 'back') : ''}</div>
       <div class="cover-caption"><div><small>${current.name}</small><strong>${title}</strong></div>${button('play', state.playing ? '暂停预览' : '播放预览', state.playing ? 'pause' : 'play', 'play-btn')}</div>
       <div class="progress" aria-hidden="true"><span></span></div>
     </div>
-    ${showingSheet ? `<section class="sheet" aria-label="视频播放弹窗页">
+    ${showingSheet ? `<section class="sheet" aria-label="合集弹窗">
       <div class="sheet-head"><div class="sheet-title">${icon('layers')}<span>合集 · ${current.name}</span><small>${ids.length} 个视频</small></div>${sortingButton()}${button('close', '关闭合集弹窗', 'close', 'icon close')}</div>
       <div class="sheet-list" data-scroll>${ids.map(id => episodeRow(id, 'sheet')).join('')}</div>
       <div class="sheet-footer"><button type="button" class="pill secondary" data-action="all">查看全部</button>${subscription()}</div>
@@ -154,7 +158,7 @@ function renderAll(ids) {
   const current = collection();
   const card = state.view === 'card';
   return `<section class="full" aria-label="合集详情页">
-    <header class="full-head"><div class="head-bg" aria-hidden="true">${image(current.cover)}</div><div class="full-nav">${button('sheet', '返回视频播放弹窗', 'back')}<span>合集</span></div>
+    <header class="full-head"><div class="head-bg" aria-hidden="true">${image(current.cover)}</div><div class="full-nav">${button('sheet', '返回合集弹窗', 'back')}<span>合集</span></div>
       <div class="collection"><div class="thumb">${image(current.cover)}</div><div><h2>${current.name}</h2><p>${current.author} · 更新于昨天<br><span>视频合集</span><span>近期有更新</span></p></div></div>
       <div class="metrics">${current.metrics.map((metric, i) => `<div><strong>${metric}</strong><small>${['订阅数','总热度','浏览数'][i]}</small></div>`).join('')}</div>
     </header>
@@ -165,19 +169,19 @@ function renderAll(ids) {
     <div class="full-footer">${subscription()}<button type="button" class="pill read" data-action="read">开始阅读</button></div>
   </section>`;
 }
-function renderControls() {
+function renderControls(orderedIds) {
   const {order, authorIds} = saved();
   const page = state.page === 'all' ? state.view : state.page;
-  const next = nextEpisode();
-  const nextTitle = next ? episodes[next][0] : state.autoplay ? '已无下一条' : '自动连播已关闭';
+  const next = nextEpisode(orderedIds);
+  const nextTitle = next ? episodes[next][0] : '已到末条';
   const ids = forwardIds();
   const selected = state.authorId ?? ids[0];
-  const routes = [['sheet','layers','视频播放弹窗页'],['card','card','合集详情 · 卡片视图'],['list','list','合集详情 · 列表视图']];
+  const routes = [['sheet','layers','合集弹窗'],['card','card','合集详情 · 卡片视图'],['list','list','合集详情 · 列表视图']];
   controls.innerHTML = `
     <section class="panel"><h2>页面预览</h2><div class="segments">${routes.map(([route, glyph, text]) => `<button type="button" data-action="preview" data-id="${route}" aria-pressed="${page === route}">${icon(glyph)}${text}${page === route ? '<span class="current-dot" aria-hidden="true"></span>' : ''}</button>`).join('')}</div></section>
     <section class="panel"><h2>演示场景</h2><div class="collection-options">${Object.entries(collections).map(([id, item]) => `<button type="button" data-action="collection" data-id="${id}" aria-pressed="${state.collection === id}">${image(item.cover)}${item.name}</button>`).join('')}</div>
-      <div class="playback-settings"><button type="button" role="switch" aria-checked="${state.autoplay}" data-action="autoplay">自动连播</button><button type="button" role="switch" aria-checked="${state.loop}" data-action="loop">合集循环</button></div>
-      <div class="scenarios"><button type="button" class="finish" data-action="finish"${state.page === 'all' ? ' disabled' : ''}>${icon('play')}模拟完播</button><button type="button" data-action="forget">${icon('reset')}清除当前合集的排序记录</button></div></section>
+      <div class="playback-settings"><button type="button" role="switch" aria-checked="${state.autoplay}" data-action="autoplay">自动连播</button></div>
+      <div class="scenarios"><button type="button" data-action="swipe-next"${state.page === 'all' || !next ? ' disabled' : ''}>${icon('desc')}模拟下刷</button><button type="button" class="finish" data-action="finish"${state.page === 'all' ? ' disabled' : ''}>${icon('play')}模拟完播</button><button type="button" data-action="forget">${icon('reset')}清除当前合集的排序记录</button></div></section>
     <section class="panel"><h2>作者排序</h2><label for="author-episode" class="author-caption">选择要调整的视频</label><select id="author-episode" class="author-episode">${ids.map((id, index) => `<option value="${id}"${id === selected ? ' selected' : ''}>${index + 1}. ${episodes[id][0]}</option>`).join('')}</select>
       <div class="author-moves"><button type="button" data-action="move-up">上移</button><button type="button" data-action="move-down">下移</button><button type="button" data-action="restore"${authorIds ? '' : ' disabled'}>恢复原顺序</button></div></section>
     <section class="panel"><h2>排序与续播</h2><dl class="state"><div><dt>当前排序</dt><dd class="order-value">${orderLabels[order]}</dd></div><div><dt>下一条</dt><dd class="next-title" title="${nextTitle}">${nextTitle}</dd></div></dl></section>`;
@@ -191,15 +195,14 @@ function updateAuthorMoves() {
 function render({keepScroll = false, revealEpisode = false, trigger} = {}) {
   const scroll = keepScroll ? screen.querySelector('[data-scroll]')?.scrollTop : 0;
   const focused = trigger === document.activeElement;
-  const pinned = latestId();
-  const ids = [pinned, ...sortedIds().filter(id => id !== pinned)];
+  const ids = sortedIds();
   const full = state.page === 'all';
   screen.innerHTML = full ? renderAll(ids) : renderReader(ids);
-  label.textContent = full ? `合集详情 · ${state.view === 'card' ? '卡片' : '列表'}视图` : state.page === 'sheet' ? '视频播放弹窗页' : '视频播放页';
+  label.textContent = full ? `合集详情 · ${state.view === 'card' ? '卡片' : '列表'}视图` : state.page === 'sheet' ? '合集弹窗' : '视频播放页';
   if (scroll) screen.querySelector('[data-scroll]').scrollTop = scroll;
-  if (revealEpisode) revealPlayingEpisode();
+  if (revealEpisode) revealPlayingEpisode(ids[0]);
   updateProgress();
-  renderControls();
+  renderControls(ids);
   if (focused && trigger) {
     const action = trigger.dataset.action;
     const id = trigger.dataset.id;
@@ -208,7 +211,7 @@ function render({keepScroll = false, revealEpisode = false, trigger} = {}) {
     (same || next)?.focus({preventScroll:true});
   }
 }
-function revealPlayingEpisode() {
+function revealPlayingEpisode(firstId) {
   const list = screen.querySelector('.sheet-list, .list-view');
   const row = list?.querySelector('[aria-current="true"]');
   if (!row) return;
@@ -216,7 +219,7 @@ function revealPlayingEpisode() {
   const visibleTop = list.getBoundingClientRect().top + list.clientTop;
   const visibleBottom = visibleTop + list.clientHeight;
   if (list.classList.contains('sheet-list')) {
-    if (state.now === latestId()) list.scrollTop = 0;
+    if (state.now === firstId) list.scrollTop = 0;
     else list.scrollTop += (rowBounds.top + rowBounds.bottom - visibleTop - visibleBottom) / 2;
   } else if (rowBounds.top < visibleTop) {
     list.scrollTop -= Math.ceil(visibleTop - rowBounds.top);
@@ -232,6 +235,15 @@ function openPage(page) {
   state.page = page;
   if (page === 'all') state.playing = false;
 }
+function selectCollection(id) {
+  state.collection = id;
+  state.now = collection().initial;
+  state.elapsed = 0;
+  state.playing = false;
+  state.fromAll = false;
+  state.authorId = null;
+  if (state.page === 'reader') openPage('sheet');
+}
 function playEpisode(id) {
   const returnToAll = state.page === 'all';
   if (state.now !== id || state.elapsed >= previewSeconds) state.elapsed = 0;
@@ -243,14 +255,20 @@ function playEpisode(id) {
   }
 }
 function finishEpisode(trigger) {
-  const next = nextEpisode();
   state.elapsed = previewSeconds;
-  if (next) {
-    playEpisode(next);
+  const next = state.autoplay ? nextEpisode() : null;
+  if (state.autoplay) {
+    playEpisode(next ?? state.now);
   } else {
     state.playing = false;
   }
   render({keepScroll:true, revealEpisode:Boolean(next), trigger});
+}
+function advanceEpisode(trigger) {
+  const next = nextEpisode();
+  if (!next) return;
+  playEpisode(next);
+  render({revealEpisode:true, trigger});
 }
 controls.addEventListener('change', event => {
   if (event.target.id !== 'author-episode') return;
@@ -291,18 +309,12 @@ document.addEventListener('click', event => {
       if (state.elapsed >= previewSeconds) state.elapsed = 0;
       state.playing = !state.playing; keepScroll = true; break;
     case 'finish': finishEpisode(trigger); return;
+    case 'swipe-next': advanceEpisode(trigger); return;
     case 'autoplay': state.autoplay = !state.autoplay; keepScroll = true; break;
-    case 'loop': state.loop = !state.loop; keepScroll = true; break;
     case 'subscribe': pref.subscribed = !pref.subscribed; persist(); keepScroll = true; break;
     case 'collection':
       if (id === state.collection) return;
-      state.collection = id;
-      state.now = collection().initial;
-      state.elapsed = 0;
-      state.playing = false;
-      state.fromAll = false;
-      state.authorId = null;
-      if (state.page === 'reader') openPage('sheet');
+      selectCollection(id);
       revealEpisode = state.page === 'sheet';
       break;
     case 'move-up':
@@ -327,6 +339,30 @@ document.addEventListener('click', event => {
   }
   render({keepScroll, revealEpisode, trigger});
 });
+let wheelTimer;
+screen.addEventListener('wheel', event => {
+  if (!event.target.closest('.reader-cover') || event.ctrlKey || event.deltaY <= Math.abs(event.deltaX)) return;
+  event.preventDefault();
+  const firstEvent = wheelTimer === undefined;
+  clearTimeout(wheelTimer);
+  wheelTimer = setTimeout(() => { wheelTimer = undefined; }, 180);
+  if (firstEvent) advanceEpisode();
+}, {passive:false});
+
+let swipeStart;
+screen.addEventListener('pointerdown', event => {
+  if (event.pointerType !== 'touch' || !event.isPrimary || !event.target.closest('.reader-cover') || event.target.closest('button')) return;
+  swipeStart = {x:event.clientX, y:event.clientY};
+});
+screen.addEventListener('pointercancel', () => { swipeStart = undefined; });
+screen.addEventListener('pointerup', event => {
+  if (event.pointerType !== 'touch' || !event.isPrimary || !swipeStart) return;
+  const distance = swipeStart.y - event.clientY;
+  const sideways = Math.abs(event.clientX - swipeStart.x);
+  swipeStart = undefined;
+  if (distance >= 45 && distance > sideways) advanceEpisode();
+});
+
 setInterval(() => {
   if (!state.playing) return;
   state.elapsed += 1;
